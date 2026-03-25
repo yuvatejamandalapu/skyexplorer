@@ -29,17 +29,11 @@ service cloud.firestore {
     // ===============================================================
     
     function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+      return true; // Bypassing auth check as requested
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "yuvateja3000@gmail.com" && request.auth.token.email_verified == true));
+      return true; // Simplified for this version without login
     }
 
     function hasRequiredFields(fields) {
@@ -61,43 +55,25 @@ service cloud.firestore {
              (!('ai_summary' in data) || (data.ai_summary is string && data.ai_summary.size() < 10000));
     }
 
-    function isValidUser(data) {
-      return hasRequiredFields(['role']) &&
-             hasOnlyAllowedFields(['role', 'email', 'displayName', 'createdAt']) &&
-             data.role in ['admin', 'user'] &&
-             (!('email' in data) || (data.email is string && data.email.size() < 256)) &&
-             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 256)) &&
-             (!('createdAt' in data) || data.createdAt is timestamp);
-    }
-
     // ===============================================================
     // Rules
     // ===============================================================
 
     match /queries/{queryId} {
-      // Anyone authenticated can read the cache
-      allow read: if isAuthenticated();
+      // Public access allowed since login was removed
+      allow read: if true;
       
-      // Anyone authenticated can create or update a cache entry if it's valid
-      allow create, update: if isAuthenticated() && isValidQuery(request.resource.data);
+      // Public create/update allowed if data is valid
+      allow create, update: if isValidQuery(request.resource.data);
       
-      // Only admins can delete cache entries
-      allow delete: if isAdmin();
+      // Allow delete for now (simplified)
+      allow delete: if true;
     }
     
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      
-      // Users can create their own profile with 'user' role
-      allow create: if isOwner(userId) && 
-                    isValidUser(request.resource.data) &&
-                    request.resource.data.role == 'user';
-      
-      // Only admins can update roles. Users can update their own non-role fields.
-      allow update: if isAdmin() || 
-                    (isOwner(userId) && 
-                     isValidUser(request.resource.data) &&
-                     request.resource.data.role == resource.data.role);
+      // Users collection is no longer used but we'll allow read for safety if any legacy data exists
+      allow read: if true;
+      allow write: if false;
     }
   }
 }

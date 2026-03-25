@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { db, auth } from './firebase';
+import { db } from './firebase';
 import { 
   doc, 
   getDoc, 
@@ -8,12 +8,6 @@ import {
   serverTimestamp, 
   getDocFromServer 
 } from 'firebase/firestore';
-import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  onAuthStateChanged,
-  User
-} from 'firebase/auth';
 import { 
   Search, 
   Info, 
@@ -68,17 +62,12 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
+      userId: 'anonymous',
+      email: null,
+      emailVerified: false,
+      isAnonymous: true,
+      tenantId: null,
+      providerInfo: []
     },
     operationType,
     path
@@ -170,7 +159,7 @@ const SEED_GALAXY_DATA = [
 
 // --- App Component ---
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [isEntered, setIsEntered] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedObject, setSelectedObject] = useState<CatalogData | null>(null);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -186,9 +175,9 @@ export default function App() {
   const aladinRef = useRef<any>(null);
   const aladinDivRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Auth
+  // Initialize Application
   useEffect(() => {
-    console.log("[Action] Initializing Application and Auth State");
+    console.log("[Action] Initializing Application");
     const testConnection = async () => {
       console.log("[Action] Testing Firestore Connection");
       try {
@@ -202,18 +191,12 @@ export default function App() {
       }
     };
     testConnection();
-
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      console.log("[Event] Auth State Changed:", u ? `User ${u.uid} logged in` : "User logged out");
-      setUser(u);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    setLoading(false);
   }, []);
 
   // Initialize Aladin Lite
   useEffect(() => {
-    if (!loading && user && aladinDivRef.current && !aladinRef.current) {
+    if (!loading && isEntered && aladinDivRef.current && !aladinRef.current) {
       console.log("[Action] Initializing Aladin Lite View");
       // @ts-ignore
       const aladin = window.A.aladin('#aladin-lite-div', {
@@ -242,43 +225,16 @@ export default function App() {
         }
       });
     }
-  }, [loading, user]);
+  }, [loading, isEntered]);
 
-  const handleLogin = async () => {
-    console.log("[Action] User Login Initiated");
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      console.log("[Success] User Logged In:", user.uid);
-      
-      // Create user profile if it doesn't exist
-      const userDocRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userDocRef);
-      if (!userSnap.exists()) {
-        console.log("[Action] Creating New User Profile in Firestore");
-        try {
-          await setDoc(userDocRef, {
-            role: 'user',
-            email: user.email,
-            displayName: user.displayName,
-            createdAt: serverTimestamp()
-          });
-          console.log("[Success] User Profile Created");
-        } catch (err) {
-          console.error("[Error] Failed to create user profile", err);
-          // Non-blocking error, user can still use the app
-        }
-      }
-    } catch (err) {
-      console.error("[Error] Login failed", err);
-      setError("Failed to sign in. Please try again.");
-    }
+  const handleEnter = () => {
+    console.log("[Action] User Entered the Cosmos");
+    setIsEntered(true);
   };
 
-  const handleLogout = () => {
-    console.log("[Action] User Logout Initiated");
-    auth.signOut();
+  const handleExit = () => {
+    console.log("[Action] User Exited the Cosmos");
+    setIsEntered(false);
   };
 
   const getCoordinateHash = (ra: number, dec: number) => {
@@ -299,7 +255,6 @@ export default function App() {
   };
 
   const seedDatabase = async () => {
-    if (!user) return;
     console.log("[Action] Database Seeding Initiated");
     setIsSeeding(true);
     setError(null);
@@ -479,7 +434,7 @@ export default function App() {
     );
   }
 
-  if (!user) {
+  if (!isEntered) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-black text-white p-6 relative overflow-hidden">
         <div className="atmosphere absolute inset-0 z-0" />
@@ -519,12 +474,12 @@ export default function App() {
               Explore the Sloan Digital Sky Survey through a refined interface powered by real-time astronomical catalog caching.
             </p>
             <button 
-              onClick={handleLogin}
+              onClick={handleEnter}
               className="premium-button px-10 py-5 w-full text-lg group"
             >
               <div className="flex items-center justify-center gap-3">
-                <UserIcon className="w-5 h-5" />
-                Connect with Google
+                <Sparkles className="w-5 h-5 text-orange-500" />
+                Enter
                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </button>
@@ -548,9 +503,9 @@ export default function App() {
             <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-[0.2em] mt-1">Celestial Intelligence v1.1</p>
           </div>
           <button 
-            onClick={handleLogout}
+            onClick={handleExit}
             className="p-3 hover:bg-white/5 rounded-full transition-all text-zinc-500 hover:text-white border border-transparent hover:border-white/10"
-            title="Sign Out"
+            title="Exit"
           >
             <LogOut className="w-4 h-4" />
           </button>
