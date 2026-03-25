@@ -1,0 +1,5 @@
+{
+  "name": "SkyExplorer AI",
+  "description": "An interactive astronomical explorer using Aladin Lite and SDSS data, featuring AI-powered object summarization and intelligent caching.",
+  "requestFramePermissions": ["geolocation"]
+}
