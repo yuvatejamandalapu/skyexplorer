@@ -4,37 +4,100 @@ service cloud.firestore {
     // ===============================================================
     // Assumed Data Model
     // ===============================================================
+    //
     // Collection: queries
+    // Document ID: query_{ra}_{dec} (hashed)
     // Fields:
-    //   - ra: number (required)
-    //   - dec: number (required)
-    //   - catalog_data: map (required)
-    //   - ai_summary: string (optional)
-    //   - queried_at: timestamp (required)
+    //   - ra: number (required) - Right Ascension
+    //   - dec: number (required) - Declination
+    //   - catalog_data: map (required) - Raw astronomical data
+    //   - ai_summary: string (optional) - AI generated description
+    //   - queried_at: timestamp (required) - Creation/Update time
+    //
+    // Collection: users
+    // Document ID: Firebase Auth UID
+    // Fields:
+    //   - role: string (required) - User role ('admin', 'user')
+    //   - email: string (optional) - User email
+    //   - displayName: string (optional) - User display name
+    //   - createdAt: timestamp (optional) - Profile creation time
+    //
     // ===============================================================
 
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "yuvateja3000@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Domain Validators
     function isValidQuery(data) {
-      return data.ra is number && 
+      return hasRequiredFields(['ra', 'dec', 'catalog_data', 'queried_at']) &&
+             hasOnlyAllowedFields(['ra', 'dec', 'catalog_data', 'queried_at', 'ai_summary']) &&
+             data.ra is number && 
              data.dec is number && 
              data.catalog_data is map &&
-             data.queried_at is timestamp;
+             data.queried_at is timestamp &&
+             (!('ai_summary' in data) || (data.ai_summary is string && data.ai_summary.size() < 10000));
     }
+
+    function isValidUser(data) {
+      return hasRequiredFields(['role']) &&
+             hasOnlyAllowedFields(['role', 'email', 'displayName', 'createdAt']) &&
+             data.role in ['admin', 'user'] &&
+             (!('email' in data) || (data.email is string && data.email.size() < 256)) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 256)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
 
     match /queries/{queryId} {
       // Anyone authenticated can read the cache
       allow read: if isAuthenticated();
-      // Anyone authenticated can create a new cache entry if it's valid
-      allow create: if isAuthenticated() && isValidQuery(request.resource.data);
-      // No updates or deletes for now to keep the cache immutable
-      allow update, delete: if false;
+      
+      // Anyone authenticated can create or update a cache entry if it's valid
+      allow create, update: if isAuthenticated() && isValidQuery(request.resource.data);
+      
+      // Only admins can delete cache entries
+      allow delete: if isAdmin();
     }
     
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Users can create their own profile with 'user' role
+      allow create: if isOwner(userId) && 
+                    isValidUser(request.resource.data) &&
+                    request.resource.data.role == 'user';
+      
+      // Only admins can update roles. Users can update their own non-role fields.
+      allow update: if isAdmin() || 
+                    (isOwner(userId) && 
+                     isValidUser(request.resource.data) &&
+                     request.resource.data.role == resource.data.role);
     }
   }
 }

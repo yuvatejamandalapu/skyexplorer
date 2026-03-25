@@ -1,5 +1,5 @@
 {
   "name": "SkyExplorer AI",
-  "description": "An interactive astronomical explorer using Aladin Lite and SDSS data, featuring AI-powered object summarization and intelligent caching.",
+  "description": "SkyExplorer AI is an advanced astronomical data visualization and analysis platform. It integrates the Aladin Lite sky map with Gemini AI to provide real-time celestial object summarization, persistent catalog caching, and deep cosmic insights for amateur and professional astronomers alike.",
   "requestFramePermissions": ["geolocation"]
 }

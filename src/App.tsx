@@ -36,6 +36,57 @@ function cn(...inputs: ClassValue[]) {
 }
 
 // --- Types ---
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 interface CatalogData {
   name?: string;
   ra: number;
@@ -126,6 +177,7 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   
   // Search state
   const [searchRa, setSearchRa] = useState("");
@@ -136,7 +188,23 @@ export default function App() {
 
   // Initialize Auth
   useEffect(() => {
+    console.log("[Action] Initializing Application and Auth State");
+    const testConnection = async () => {
+      console.log("[Action] Testing Firestore Connection");
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+        console.log("[Success] Firestore Connection Verified");
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("[Error] Firestore Connection Failed: Client is offline");
+          setError("Cosmic connection failed. Please check your configuration.");
+        }
+      }
+    };
+    testConnection();
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
+      console.log("[Event] Auth State Changed:", u ? `User ${u.uid} logged in` : "User logged out");
       setUser(u);
       setLoading(false);
     });
@@ -146,6 +214,7 @@ export default function App() {
   // Initialize Aladin Lite
   useEffect(() => {
     if (!loading && user && aladinDivRef.current && !aladinRef.current) {
+      console.log("[Action] Initializing Aladin Lite View");
       // @ts-ignore
       const aladin = window.A.aladin('#aladin-lite-div', {
         survey: 'P/DSS2/color',
@@ -160,6 +229,7 @@ export default function App() {
       // Handle click on the map
       aladin.on('objectClicked', (object: any) => {
         if (object) {
+          console.log("[Event] Aladin Object Clicked:", object.ra, object.dec);
           handleObjectSelect(object.ra, object.dec, object.data);
         }
       });
@@ -167,6 +237,7 @@ export default function App() {
       // Also handle general click to get coordinates
       aladin.on('click', (event: any) => {
         if (event && event.ra !== undefined) {
+          console.log("[Event] Aladin Map Clicked:", event.ra, event.dec);
           handleObjectSelect(event.ra, event.dec);
         }
       });
@@ -174,34 +245,62 @@ export default function App() {
   }, [loading, user]);
 
   const handleLogin = async () => {
+    console.log("[Action] User Login Initiated");
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      console.log("[Success] User Logged In:", user.uid);
+      
+      // Create user profile if it doesn't exist
+      const userDocRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userDocRef);
+      if (!userSnap.exists()) {
+        console.log("[Action] Creating New User Profile in Firestore");
+        try {
+          await setDoc(userDocRef, {
+            role: 'user',
+            email: user.email,
+            displayName: user.displayName,
+            createdAt: serverTimestamp()
+          });
+          console.log("[Success] User Profile Created");
+        } catch (err) {
+          console.error("[Error] Failed to create user profile", err);
+          // Non-blocking error, user can still use the app
+        }
+      }
     } catch (err) {
-      console.error("Login failed", err);
+      console.error("[Error] Login failed", err);
       setError("Failed to sign in. Please try again.");
     }
   };
 
-  const handleLogout = () => auth.signOut();
+  const handleLogout = () => {
+    console.log("[Action] User Logout Initiated");
+    auth.signOut();
+  };
 
   const getCoordinateHash = (ra: number, dec: number) => {
     return `query_${ra.toFixed(4)}_${dec.toFixed(4)}`.replace(/\./g, '_');
   };
 
   const handleSearch = () => {
+    console.log("[Action] Coordinate Search Initiated:", searchRa, searchDec);
     const ra = parseFloat(searchRa);
     const dec = parseFloat(searchDec);
     if (!isNaN(ra) && !isNaN(dec)) {
       aladinRef.current?.gotoRaDec(ra, dec);
       handleObjectSelect(ra, dec);
     } else {
+      console.warn("[Warning] Invalid Search Coordinates Provided");
       setError("Please enter valid numeric coordinates.");
     }
   };
 
   const seedDatabase = async () => {
     if (!user) return;
+    console.log("[Action] Database Seeding Initiated");
     setIsSeeding(true);
     setError(null);
     try {
@@ -209,11 +308,22 @@ export default function App() {
       
       for (const galaxy of SEED_GALAXY_DATA) {
         const queryId = getCoordinateHash(galaxy.ra, galaxy.dec);
+        console.log("[Action] Seeding Object:", galaxy.name, "ID:", queryId);
         const docRef = doc(db, 'queries', queryId);
         
         // Check if already exists
-        const snap = await getDoc(docRef);
-        if (snap.exists()) continue;
+        let snap;
+        try {
+          console.log("[Action] Checking Cache for Query ID:", queryId);
+          snap = await getDoc(docRef);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.GET, `queries/${queryId}`);
+        }
+        
+        if (snap && snap.exists()) {
+          console.log("[Info] Object Already Cached, Skipping AI Generation");
+          continue;
+        }
 
         const catalogData = {
           ra: galaxy.ra,
@@ -230,22 +340,33 @@ export default function App() {
           
           Provide a concise, fascinating summary. Use LaTeX for any mathematical notations (e.g., $z = 0.05$). Use markdown.`;
 
+        console.log("[Action] Requesting AI Summary from Gemini for Seed Object");
         const result = await ai.models.generateContent({
           model: GEMINI_MODEL,
           contents: prompt,
         });
 
-        await setDoc(docRef, {
-          ra: galaxy.ra,
-          dec: galaxy.dec,
-          catalog_data: catalogData,
-          ai_summary: result.text || "No summary available.",
-          queried_at: serverTimestamp()
-        });
+        try {
+          console.log("[Action] Caching Seed Analysis to Firestore");
+          await setDoc(docRef, {
+            ra: galaxy.ra,
+            dec: galaxy.dec,
+            catalog_data: catalogData,
+            ai_summary: result.text || "No summary available.",
+            queried_at: serverTimestamp()
+          });
+          console.log("[Success] Seed Analysis Cached Successfully");
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `queries/${queryId}`);
+        }
+
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
-      alert("Database seeded with 50 galaxies!");
+      setNotification({ message: "Database seeded with 50 galaxies!", type: 'success' });
+      setTimeout(() => setNotification(null), 5000);
     } catch (err) {
-      console.error("Seeding failed", err);
+      console.error("[Error] Seeding failed", err);
       setError("Failed to seed database.");
     } finally {
       setIsSeeding(false);
@@ -253,6 +374,7 @@ export default function App() {
   };
 
   const fetchCatalogData = async (ra: number, dec: number): Promise<CatalogData> => {
+    console.log("[Action] Fetching Catalog Data for:", ra, dec);
     try {
       return {
         ra,
@@ -265,23 +387,33 @@ export default function App() {
         survey: 'SDSS DR16'
       };
     } catch (err) {
-      console.error("Catalog fetch failed", err);
+      console.error("[Error] Catalog fetch failed", err);
       return { ra, dec, survey: 'Unknown' };
     }
   };
 
   const handleObjectSelect = async (ra: number, dec: number, existingData?: any) => {
+    console.log("[Action] Object Selected:", ra, dec);
     setError(null);
     setSelectedObject(null);
     setAiSummary(null);
     setIsAnalyzing(true);
 
     const queryId = getCoordinateHash(ra, dec);
+    console.log("[Info] Query ID:", queryId);
     const docRef = doc(db, 'queries', queryId);
 
     try {
-      const cacheSnap = await getDoc(docRef);
-      if (cacheSnap.exists()) {
+      let cacheSnap;
+      try {
+        console.log("[Action] Checking Cache for Query ID:", queryId);
+        cacheSnap = await getDoc(docRef);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, `queries/${queryId}`);
+      }
+
+      if (cacheSnap && cacheSnap.exists()) {
+        console.log("[Success] Cache Hit Found");
         const data = cacheSnap.data() as CachedQuery;
         setSelectedObject(data.catalog_data);
         setAiSummary(data.ai_summary);
@@ -289,9 +421,11 @@ export default function App() {
         return;
       }
 
+      console.log("[Info] Cache Miss, Generating New Analysis");
       const catalogData = existingData || await fetchCatalogData(ra, dec);
       setSelectedObject(catalogData);
 
+      console.log("[Action] Requesting AI Summary from Gemini");
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
       const prompt = `You are a professional astronomer. Analyze this astronomical object data:
         Coordinates: RA ${ra}, Dec ${dec}
@@ -308,18 +442,25 @@ export default function App() {
       });
 
       const summary = result.text || "No summary available.";
+      console.log("[Success] AI Summary Generated");
       setAiSummary(summary);
 
-      await setDoc(docRef, {
-        ra,
-        dec,
-        catalog_data: catalogData,
-        ai_summary: summary,
-        queried_at: serverTimestamp()
-      });
+      try {
+        console.log("[Action] Caching Analysis to Firestore");
+        await setDoc(docRef, {
+          ra,
+          dec,
+          catalog_data: catalogData,
+          ai_summary: summary,
+          queried_at: serverTimestamp()
+        });
+        console.log("[Success] Analysis Cached Successfully");
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `queries/${queryId}`);
+      }
 
     } catch (err) {
-      console.error("Processing failed", err);
+      console.error("[Error] Processing failed", err);
       setError("Something went wrong while analyzing the cosmos.");
     } finally {
       setIsAnalyzing(false);
@@ -560,6 +701,20 @@ export default function App() {
               className="p-5 bg-red-500/5 border border-red-500/10 rounded-2xl text-red-400 text-[10px] uppercase tracking-widest text-center"
             >
               {error}
+            </motion.div>
+          )}
+
+          {notification && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className={cn(
+                "p-5 border rounded-2xl text-[10px] uppercase tracking-widest text-center",
+                notification.type === 'success' ? "bg-orange-500/10 border-orange-500/20 text-orange-400" : "bg-red-500/10 border-red-500/20 text-red-400"
+              )}
+            >
+              {notification.message}
             </motion.div>
           )}
         </div>
