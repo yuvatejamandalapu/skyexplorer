@@ -249,7 +249,11 @@ export default function App() {
     setIsSeeding(true);
     setError(null);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("Gemini API Key is missing. Please check your environment variables.");
+      }
+      const ai = new GoogleGenAI({ apiKey });
       
       for (const galaxy of SEED_GALAXY_DATA) {
         const queryId = getCoordinateHash(galaxy.ra, galaxy.dec);
@@ -382,7 +386,11 @@ export default function App() {
       setSelectedObject(catalogData);
 
       console.log("[Action] Requesting AI Summary from Gemini");
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("Gemini API Key is missing. Please check your environment variables.");
+      }
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `You are a professional astronomer. Analyze this astronomical object data:
         Coordinates: RA ${ra}, Dec ${dec}
         Type: ${catalogData.obj_type || 'Unknown'}
