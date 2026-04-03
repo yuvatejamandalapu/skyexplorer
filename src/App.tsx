@@ -12,7 +12,8 @@ import {
   User as UserIcon,
   LogOut,
   FileText,
-  Layers
+  Layers,
+  RefreshCw
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
@@ -177,6 +178,7 @@ export default function App() {
             setError("Database table 'queries' missing. Please run the SQL setup script in Supabase.");
           } else {
             setDbStatus('error');
+            setError(`Supabase Error: ${error.message} (Code: ${error.code})`);
             throw error;
           }
         } else {
@@ -236,6 +238,42 @@ export default function App() {
   const handleEnter = () => {
     console.log("[Action] User Entered the Cosmos");
     setIsEntered(true);
+  };
+
+  const retryConnection = async () => {
+    console.log("[Action] Retrying Supabase Connection");
+    setDbStatus('disconnected');
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('queries')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (error) {
+        if (error.code === '42P01') {
+          setDbStatus('error');
+          setError("Database table 'queries' missing. Please run the SQL setup script in Supabase.");
+        } else {
+          setDbStatus('error');
+          setError(`Supabase Error: ${error.message} (Code: ${error.code})`);
+          throw error;
+        }
+      } else {
+        setDbStatus('connected');
+        setRecentQueries(data || []);
+        console.log("[Success] Supabase Connection Verified");
+      }
+    } catch (error: any) {
+      setDbStatus('error');
+      console.error("[Error] Supabase Connection Failed:", error.message);
+      if (error.message.includes('configuration missing')) {
+        setError("Supabase configuration missing. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment variables in the Settings menu.");
+      } else {
+        setError(`Cosmic connection failed: ${error.message}`);
+      }
+    }
   };
 
   const handleExit = () => {
@@ -602,12 +640,21 @@ export default function App() {
               <p className="text-[10px] text-zinc-400 leading-relaxed">
                 {error || "Could not connect to Supabase. Please check your configuration."}
               </p>
-              <button 
-                onClick={() => setShowDatabase(true)}
-                className="text-[9px] text-orange-500 hover:text-orange-400 font-bold uppercase tracking-widest"
-              >
-                View SQL Setup Script
-              </button>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setShowDatabase(true)}
+                  className="text-[9px] text-orange-500 hover:text-orange-400 font-bold uppercase tracking-widest"
+                >
+                  View SQL Setup Script
+                </button>
+                <button 
+                  onClick={retryConnection}
+                  className="text-[9px] text-zinc-400 hover:text-white font-bold uppercase tracking-widest flex items-center gap-1"
+                >
+                  <RefreshCw className="w-2 h-2" />
+                  Retry Connection
+                </button>
+              </div>
             </div>
           )}
 
