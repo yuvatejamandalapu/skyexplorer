@@ -77,7 +77,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 
 // --- Constants ---
-const GEMINI_MODEL = "gemini-2.5-flash-preview";
+const GEMINI_MODEL = "gemini-2.5-flash";
 // --- Seed Data (Sample of 50 Galaxies/Objects) ---
 const SEED_GALAXY_DATA = [
   { name: "Andromeda Galaxy (M31)", ra: 10.6847, dec: 41.2687, type: "Spiral Galaxy" },
