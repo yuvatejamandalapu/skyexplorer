@@ -249,9 +249,9 @@ export default function App() {
     setIsSeeding(true);
     setError(null);
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Gemini API Key is missing. Please check your environment variables.");
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : undefined);
+      if (!apiKey || apiKey === 'undefined') {
+        throw new Error("Gemini API Key is missing. Please add VITE_GEMINI_API_KEY to your Settings > Secrets in AI Studio.");
       }
       const ai = new GoogleGenAI({ apiKey });
       
@@ -386,9 +386,9 @@ export default function App() {
       setSelectedObject(catalogData);
 
       console.log("[Action] Requesting AI Summary from Gemini");
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Gemini API Key is missing. Please check your environment variables.");
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : undefined);
+      if (!apiKey || apiKey === 'undefined') {
+        throw new Error("Gemini API Key is missing. Please add VITE_GEMINI_API_KEY to your Settings > Secrets in AI Studio.");
       }
       const ai = new GoogleGenAI({ apiKey });
       const prompt = `You are a professional astronomer. Analyze this astronomical object data:
