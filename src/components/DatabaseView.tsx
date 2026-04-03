@@ -45,6 +45,25 @@ CREATE POLICY "Public Read/Write" ON queries FOR ALL USING (true);`;
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-8 space-y-12 custom-scrollbar">
+          {/* Setup Instructions */}
+          <section className="space-y-6">
+            <div className="flex items-center gap-3 text-orange-500">
+              <Zap className="w-4 h-4" />
+              <h3 className="text-xs uppercase font-bold tracking-widest">Required Setup for Deployment</h3>
+            </div>
+            <div className="bg-orange-500/5 border border-orange-500/10 p-6 rounded-2xl space-y-4">
+              <p className="text-sm text-zinc-300 leading-relaxed">
+                To see data after deploying, you <span className="text-orange-500 font-bold">must</span> add your Supabase credentials to the AI Studio Settings:
+              </p>
+              <ol className="list-decimal list-inside text-xs text-zinc-500 space-y-2 ml-2">
+                <li>Open <span className="text-zinc-300">Settings</span> (gear icon) in the top-right.</li>
+                <li>Go to <span className="text-zinc-300">Secrets</span> or <span className="text-zinc-300">Environment Variables</span>.</li>
+                <li>Add <span className="text-orange-500 font-mono">VITE_SUPABASE_URL</span> with your project URL.</li>
+                <li>Add <span className="text-orange-500 font-mono">VITE_SUPABASE_ANON_KEY</span> with your public anon key.</li>
+              </ol>
+            </div>
+          </section>
+
           {/* Schema Visualization */}
           <section className="space-y-6">
             <div className="flex items-center gap-3 text-zinc-500">

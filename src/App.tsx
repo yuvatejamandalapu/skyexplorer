@@ -146,6 +146,7 @@ export default function App() {
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [showDatabase, setShowDatabase] = useState(false);
   const [recentQueries, setRecentQueries] = useState<any[]>([]);
+  const [dbStatus, setDbStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected');
   
   const handlePrint = () => {
     window.print();
@@ -172,17 +173,25 @@ export default function App() {
         
         if (error) {
           if (error.code === '42P01') {
+            setDbStatus('error');
             setError("Database table 'queries' missing. Please run the SQL setup script in Supabase.");
           } else {
+            setDbStatus('error');
             throw error;
           }
         } else {
+          setDbStatus('connected');
           setRecentQueries(data || []);
           console.log("[Success] Supabase Connection Verified");
         }
       } catch (error: any) {
+        setDbStatus('error');
         console.error("[Error] Supabase Connection Failed:", error.message);
-        setError("Cosmic connection failed. Please check your Supabase configuration.");
+        if (error.message.includes('configuration missing')) {
+          setError("Supabase configuration missing. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment variables in the Settings menu.");
+        } else {
+          setError("Cosmic connection failed. Please check your Supabase configuration.");
+        }
       }
     };
     testConnection();
@@ -216,6 +225,8 @@ export default function App() {
       aladin.on('click', (event: any) => {
         if (event && event.ra !== undefined) {
           console.log("[Event] Aladin Map Clicked:", event.ra, event.dec);
+          setNotification({ message: "Analyzing coordinates...", type: 'success' });
+          setTimeout(() => setNotification(null), 2000);
           handleObjectSelect(event.ra, event.dec);
         }
       });
@@ -260,20 +271,20 @@ export default function App() {
         const queryId = getCoordinateHash(galaxy.ra, galaxy.dec);
         console.log("[Action] Seeding Object:", galaxy.name, "ID:", queryId);
         
-        // Check if already exists
-        const { data: existing, error: fetchError } = await supabase
-          .from('queries')
-          .select('id')
-          .eq('query_id', queryId)
-          .single();
-        
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          handleSupabaseError(fetchError, OperationType.GET, 'queries');
-        }
-        
-        if (existing) {
-          console.log("[Info] Object Already Cached, Skipping AI Generation");
-          continue;
+        // Check if already exists (optional, skip if error)
+        try {
+          const { data: existing, error: fetchError } = await supabase
+            .from('queries')
+            .select('id')
+            .eq('query_id', queryId)
+            .single();
+          
+          if (existing) {
+            console.log("[Info] Object Already Cached, Skipping AI Generation");
+            continue;
+          }
+        } catch (cacheErr) {
+          console.warn("[Warning] Cache check failed during seeding, proceeding anyway");
         }
 
         const catalogData = {
@@ -298,30 +309,34 @@ export default function App() {
         });
 
         console.log("[Action] Caching Seed Analysis to Supabase");
-        const { error: insertError } = await supabase
-          .from('queries')
-          .insert({
-            query_id: queryId,
-            ra: galaxy.ra,
-            dec: galaxy.dec,
-            catalog_data: catalogData,
-            ai_summary: result.text || "No summary available."
-          });
+        try {
+          const { error: insertError } = await supabase
+            .from('queries')
+            .insert({
+              query_id: queryId,
+              ra: galaxy.ra,
+              dec: galaxy.dec,
+              catalog_data: catalogData,
+              ai_summary: result.text || "No summary available."
+            });
 
-        if (insertError) {
-          handleSupabaseError(insertError, OperationType.WRITE, 'queries');
+          if (insertError) {
+            console.warn("[Warning] Caching failed during seeding:", insertError.message);
+          }
+        } catch (cacheWriteErr) {
+          console.warn("[Warning] Caching failed during seeding");
         }
         
-        console.log("[Success] Seed Analysis Cached Successfully");
+        console.log("[Success] Seed Analysis Processed");
 
         // Small delay to avoid rate limits
         await new Promise(resolve => setTimeout(resolve, 500));
       }
-      setNotification({ message: "Database seeded with 50 galaxies!", type: 'success' });
+      setNotification({ message: "Database seeding process complete!", type: 'success' });
       setTimeout(() => setNotification(null), 5000);
     } catch (err) {
       console.error("[Error] Seeding failed", err);
-      setError("Failed to seed database.");
+      setError("Failed to seed database. Please check your Gemini API key.");
     } finally {
       setIsSeeding(false);
     }
@@ -358,25 +373,27 @@ export default function App() {
 
     try {
       console.log("[Action] Checking Cache for Query ID:", queryId);
-      const { data: cached, error: fetchError } = await supabase
-        .from('queries')
-        .select('*')
-        .eq('query_id', queryId)
-        .single();
+      try {
+        const { data: cached, error: fetchError } = await supabase
+          .from('queries')
+          .select('*')
+          .eq('query_id', queryId)
+          .single();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        handleSupabaseError(fetchError, OperationType.GET, 'queries');
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          console.warn("[Warning] Cache fetch failed, proceeding with fresh analysis");
+        } else if (cached) {
+          console.log("[Success] Cache Hit Found");
+          setSelectedObject(cached.catalog_data);
+          setAiSummary(cached.ai_summary);
+          setIsAnalyzing(false);
+          return;
+        }
+      } catch (cacheErr) {
+        console.warn("[Warning] Cache check failed, proceeding with fresh analysis");
       }
 
-      if (cached) {
-        console.log("[Success] Cache Hit Found");
-        setSelectedObject(cached.catalog_data);
-        setAiSummary(cached.ai_summary);
-        setIsAnalyzing(false);
-        return;
-      }
-
-      console.log("[Info] Cache Miss, Generating New Analysis");
+      console.log("[Info] Cache Miss or Error, Generating New Analysis");
       const catalogData = existingData || await fetchCatalogData(ra, dec);
       setSelectedObject(catalogData);
 
@@ -401,29 +418,33 @@ export default function App() {
       setAiSummary(summary);
 
       console.log("[Action] Caching Analysis to Supabase");
-      const { error: insertError } = await supabase
-        .from('queries')
-        .insert({
-          query_id: queryId,
-          ra,
-          dec,
-          catalog_data: catalogData,
-          ai_summary: summary
-        });
+      try {
+        const { error: insertError } = await supabase
+          .from('queries')
+          .insert({
+            query_id: queryId,
+            ra,
+            dec,
+            catalog_data: catalogData,
+            ai_summary: summary
+          });
 
-      if (insertError) {
-        handleSupabaseError(insertError, OperationType.WRITE, 'queries');
+        if (insertError) {
+          console.warn("[Warning] Caching failed:", insertError.message);
+        } else {
+          console.log("[Success] Analysis Cached Successfully");
+          
+          // Refresh recent queries
+          const { data: latest } = await supabase
+            .from('queries')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(5);
+          setRecentQueries(latest || []);
+        }
+      } catch (cacheWriteErr) {
+        console.warn("[Warning] Caching failed");
       }
-      
-      console.log("[Success] Analysis Cached Successfully");
-      
-      // Refresh recent queries
-      const { data: latest } = await supabase
-        .from('queries')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-      setRecentQueries(latest || []);
 
     } catch (err) {
       console.error("[Error] Processing failed", err);
@@ -572,6 +593,24 @@ export default function App() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+          {dbStatus === 'error' && (
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl space-y-3">
+              <div className="flex items-center gap-2 text-red-400">
+                <Database className="w-3 h-3" />
+                <span className="text-[9px] font-bold uppercase tracking-widest">Database Error</span>
+              </div>
+              <p className="text-[10px] text-zinc-400 leading-relaxed">
+                {error || "Could not connect to Supabase. Please check your configuration."}
+              </p>
+              <button 
+                onClick={() => setShowDatabase(true)}
+                className="text-[9px] text-orange-500 hover:text-orange-400 font-bold uppercase tracking-widest"
+              >
+                View SQL Setup Script
+              </button>
+            </div>
+          )}
+
           {!selectedObject && !isAnalyzing && (
             <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-30">
               <div className="w-20 h-20 rounded-full border border-dashed border-zinc-700 flex items-center justify-center">
@@ -753,7 +792,13 @@ export default function App() {
             Interactive Sky Plate // Strasbourg Observatory
           </div>
           <div className="flex gap-4 pointer-events-auto">
-             <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+             <div className={cn(
+               "w-2 h-2 rounded-full animate-pulse",
+               dbStatus === 'connected' ? "bg-green-500" : dbStatus === 'error' ? "bg-red-500" : "bg-orange-500"
+             )} />
+             <span className="text-[8px] font-mono uppercase tracking-widest text-zinc-600">
+               DB: {dbStatus}
+             </span>
           </div>
         </div>
       </main>
