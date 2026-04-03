@@ -53,7 +53,7 @@ CREATE POLICY "Public Read/Write" ON queries FOR ALL USING (true);`;
             </div>
             <div className="bg-orange-500/5 border border-orange-500/10 p-6 rounded-2xl space-y-4">
               <p className="text-sm text-zinc-300 leading-relaxed">
-                To see data after deploying, you <span className="text-orange-500 font-bold">must</span> add your Supabase credentials to the AI Studio Settings:
+                To see data after deploying, you <span className="text-orange-500 font-bold">must</span> add your Supabase credentials to the Project Settings:
               </p>
               <ol className="list-decimal list-inside text-xs text-zinc-500 space-y-2 ml-2">
                 <li>Open <span className="text-zinc-300">Settings</span> (gear icon) in the top-right.</li>

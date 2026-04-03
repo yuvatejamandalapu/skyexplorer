@@ -77,8 +77,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 
 // --- Constants ---
-const GEMINI_MODEL = "gemini-3-flash-preview";
-
+const GEMINI_MODEL = "gemini-2.5-flash-preview";
 // --- Seed Data (Sample of 50 Galaxies/Objects) ---
 const SEED_GALAXY_DATA = [
   { name: "Andromeda Galaxy (M31)", ra: 10.6847, dec: 41.2687, type: "Spiral Galaxy" },
@@ -251,7 +250,7 @@ export default function App() {
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : undefined);
       if (!apiKey || apiKey === 'undefined') {
-        throw new Error("Gemini API Key is missing. Please add VITE_GEMINI_API_KEY to your Settings > Secrets in AI Studio.");
+        throw new Error("Gemini API Key is missing. Please add VITE_GEMINI_API_KEY to your Project Environment Variables.");
       }
       const ai = new GoogleGenAI({ apiKey });
       
@@ -388,7 +387,7 @@ export default function App() {
       console.log("[Action] Requesting AI Summary from Gemini");
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : undefined);
       if (!apiKey || apiKey === 'undefined') {
-        throw new Error("Gemini API Key is missing. Please add VITE_GEMINI_API_KEY to your Settings > Secrets in AI Studio.");
+        throw new Error("Gemini API Key is missing. Please add VITE_GEMINI_API_KEY to your Project Environment Variables.");
       }
       const ai = new GoogleGenAI({ apiKey });
       const prompt = `You are a professional astronomer. Analyze this astronomical object data:

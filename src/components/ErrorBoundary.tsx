@@ -33,7 +33,7 @@ class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       let errorMessage = "An unexpected error occurred in the cosmic interface.";
       
-      // Check if it's a Firestore error JSON
+      // Check if it's a Supabase error JSON
       try {
         if (this.state.error?.message) {
           const parsed = JSON.parse(this.state.error.message);
