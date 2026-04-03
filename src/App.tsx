@@ -1,13 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { db } from './firebase';
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  serverTimestamp, 
-  getDocFromServer 
-} from 'firebase/firestore';
+import { supabase } from './lib/supabase';
 import { 
   Search, 
   Info, 
@@ -17,7 +10,9 @@ import {
   ChevronRight,
   Database,
   User as UserIcon,
-  LogOut
+  LogOut,
+  FileText,
+  Layers
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
@@ -39,40 +34,19 @@ enum OperationType {
   WRITE = 'write',
 }
 
-interface FirestoreErrorInfo {
+interface SupabaseErrorInfo {
   error: string;
   operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
+  table: string | null;
 }
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: 'anonymous',
-      email: null,
-      emailVerified: false,
-      isAnonymous: true,
-      tenantId: null,
-      providerInfo: []
-    },
+function handleSupabaseError(error: any, operationType: OperationType, table: string | null) {
+  const errInfo: SupabaseErrorInfo = {
+    error: error?.message || String(error),
     operationType,
-    path
+    table
   }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  console.error('Supabase Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -157,6 +131,9 @@ const SEED_GALAXY_DATA = [
   { name: "Maffei 2", ra: 55.4583, dec: 59.6192, type: "Barred Spiral Galaxy" }
 ];
 
+import Presentation from './components/Presentation';
+import PrintableReport from './components/PrintableReport';
+
 // --- App Component ---
 export default function App() {
   const [isEntered, setIsEntered] = useState(false);
@@ -167,7 +144,12 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const [showPresentation, setShowPresentation] = useState(false);
   
+  const handlePrint = () => {
+    window.print();
+  };
+
   // Search state
   const [searchRa, setSearchRa] = useState("");
   const [searchDec, setSearchDec] = useState("");
@@ -179,15 +161,14 @@ export default function App() {
   useEffect(() => {
     console.log("[Action] Initializing Application");
     const testConnection = async () => {
-      console.log("[Action] Testing Firestore Connection");
+      console.log("[Action] Testing Supabase Connection");
       try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-        console.log("[Success] Firestore Connection Verified");
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("[Error] Firestore Connection Failed: Client is offline");
-          setError("Cosmic connection failed. Please check your configuration.");
-        }
+        const { error } = await supabase.from('queries').select('id').limit(1);
+        if (error) throw error;
+        console.log("[Success] Supabase Connection Verified");
+      } catch (error: any) {
+        console.error("[Error] Supabase Connection Failed:", error.message);
+        setError("Cosmic connection failed. Please check your Supabase configuration.");
       }
     };
     testConnection();
@@ -264,18 +245,19 @@ export default function App() {
       for (const galaxy of SEED_GALAXY_DATA) {
         const queryId = getCoordinateHash(galaxy.ra, galaxy.dec);
         console.log("[Action] Seeding Object:", galaxy.name, "ID:", queryId);
-        const docRef = doc(db, 'queries', queryId);
         
         // Check if already exists
-        let snap;
-        try {
-          console.log("[Action] Checking Cache for Query ID:", queryId);
-          snap = await getDoc(docRef);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.GET, `queries/${queryId}`);
+        const { data: existing, error: fetchError } = await supabase
+          .from('queries')
+          .select('id')
+          .eq('query_id', queryId)
+          .single();
+        
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          handleSupabaseError(fetchError, OperationType.GET, 'queries');
         }
         
-        if (snap && snap.exists()) {
+        if (existing) {
           console.log("[Info] Object Already Cached, Skipping AI Generation");
           continue;
         }
@@ -301,19 +283,22 @@ export default function App() {
           contents: prompt,
         });
 
-        try {
-          console.log("[Action] Caching Seed Analysis to Firestore");
-          await setDoc(docRef, {
+        console.log("[Action] Caching Seed Analysis to Supabase");
+        const { error: insertError } = await supabase
+          .from('queries')
+          .insert({
+            query_id: queryId,
             ra: galaxy.ra,
             dec: galaxy.dec,
             catalog_data: catalogData,
-            ai_summary: result.text || "No summary available.",
-            queried_at: serverTimestamp()
+            ai_summary: result.text || "No summary available."
           });
-          console.log("[Success] Seed Analysis Cached Successfully");
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `queries/${queryId}`);
+
+        if (insertError) {
+          handleSupabaseError(insertError, OperationType.WRITE, 'queries');
         }
+        
+        console.log("[Success] Seed Analysis Cached Successfully");
 
         // Small delay to avoid rate limits
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -356,22 +341,23 @@ export default function App() {
 
     const queryId = getCoordinateHash(ra, dec);
     console.log("[Info] Query ID:", queryId);
-    const docRef = doc(db, 'queries', queryId);
 
     try {
-      let cacheSnap;
-      try {
-        console.log("[Action] Checking Cache for Query ID:", queryId);
-        cacheSnap = await getDoc(docRef);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `queries/${queryId}`);
+      console.log("[Action] Checking Cache for Query ID:", queryId);
+      const { data: cached, error: fetchError } = await supabase
+        .from('queries')
+        .select('*')
+        .eq('query_id', queryId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        handleSupabaseError(fetchError, OperationType.GET, 'queries');
       }
 
-      if (cacheSnap && cacheSnap.exists()) {
+      if (cached) {
         console.log("[Success] Cache Hit Found");
-        const data = cacheSnap.data() as CachedQuery;
-        setSelectedObject(data.catalog_data);
-        setAiSummary(data.ai_summary);
+        setSelectedObject(cached.catalog_data);
+        setAiSummary(cached.ai_summary);
         setIsAnalyzing(false);
         return;
       }
@@ -400,19 +386,22 @@ export default function App() {
       console.log("[Success] AI Summary Generated");
       setAiSummary(summary);
 
-      try {
-        console.log("[Action] Caching Analysis to Firestore");
-        await setDoc(docRef, {
+      console.log("[Action] Caching Analysis to Supabase");
+      const { error: insertError } = await supabase
+        .from('queries')
+        .insert({
+          query_id: queryId,
           ra,
           dec,
           catalog_data: catalogData,
-          ai_summary: summary,
-          queried_at: serverTimestamp()
+          ai_summary: summary
         });
-        console.log("[Success] Analysis Cached Successfully");
-      } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, `queries/${queryId}`);
+
+      if (insertError) {
+        handleSupabaseError(insertError, OperationType.WRITE, 'queries');
       }
+      
+      console.log("[Success] Analysis Cached Successfully");
 
     } catch (err) {
       console.error("[Error] Processing failed", err);
@@ -490,7 +479,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-full bg-black text-white flex overflow-hidden font-sans relative">
+    <div className="h-screen w-full bg-black text-white flex overflow-hidden font-sans relative print:hidden">
       <div className="atmosphere absolute inset-0 z-0" />
 
       {/* Sidebar / Info Panel */}
@@ -502,13 +491,29 @@ export default function App() {
             </h1>
             <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-[0.2em] mt-1">Celestial Intelligence v1.1</p>
           </div>
-          <button 
-            onClick={handleExit}
-            className="p-3 hover:bg-white/5 rounded-full transition-all text-zinc-500 hover:text-white border border-transparent hover:border-white/10"
-            title="Exit"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handlePrint}
+              className="p-3 hover:bg-white/5 rounded-full transition-all text-zinc-500 hover:text-white border border-transparent hover:border-white/10"
+              title="Print Report (PDF)"
+            >
+              <FileText className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={() => setShowPresentation(true)}
+              className="p-3 hover:bg-white/5 rounded-full transition-all text-orange-500 hover:text-white border border-transparent hover:border-white/10"
+              title="Presentation Mode"
+            >
+              <Layers className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={handleExit}
+              className="p-3 hover:bg-white/5 rounded-full transition-all text-zinc-500 hover:text-white border border-transparent hover:border-white/10"
+              title="Exit"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </header>
 
         {/* Search Bar */}
@@ -704,6 +709,12 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      {showPresentation && (
+        <Presentation onClose={() => setShowPresentation(false)} />
+      )}
+
+      <PrintableReport />
     </div>
   );
 }

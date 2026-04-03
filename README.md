@@ -6,27 +6,30 @@ SkyExplorer AI is an interactive astronomical exploration tool that allows users
 
 - **Interactive Sky Plate**: Explore the cosmos using the Aladin Lite v3 API with DSS2 Color surveys.
 - **AI-Powered Analysis**: Get instant, professional astronomical summaries of any object or coordinate using Gemini 3.1 Flash.
-- **Persistent Caching**: Intelligent Firestore-based caching ensures that previously analyzed objects load instantly for all users.
+- **Relational Database (Supabase/PostgreSQL)**:
+    - **Structured Caching**: AI-generated summaries and user queries are stored in a PostgreSQL database with JSONB support.
+    - **Data Integrity**: Leverages SQL constraints and ACID compliance for reliable astronomical data management.
+- **Presentation Mode**: Built-in interactive presentation for DBMS project reviews, explaining the PostgreSQL architecture and methodology.
 - **Coordinate Navigation**: Jump to any specific Right Ascension (RA) and Declination (Dec) with precision.
 - **Seed Database**: A curated collection of 50 primary galaxies to jumpstart your exploration.
-- **Google Authentication**: Secure access and personalized history via Firebase Auth.
 
 ## Tech Stack
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS 4.
 - **Animations**: Motion (framer-motion).
 - **Icons**: Lucide React.
-- **Database & Auth**: Firebase (Firestore, Authentication).
+- **Database**: Supabase (PostgreSQL).
 - **AI**: Google Gemini API (@google/genai).
 - **Astronomy**: Aladin Lite v3, SDSS Data.
 - **Markdown Rendering**: React-Markdown with LaTeX support (remark-math, rehype-katex).
 
 ## Getting Started
 
-1. **Connect**: Sign in with your Google account to access the explorer.
+1. **Enter**: Click the "Enter" button on the landing page to access the explorer.
 2. **Explore**: Click anywhere on the sky plate to select an object.
 3. **Search**: Enter RA/Dec coordinates in the sidebar to jump to a specific location.
 4. **Learn**: Read the AI-generated summaries for deep insights into celestial bodies.
+5. **Present**: Click the "Presentation Mode" icon in the sidebar to view the project report.
 
 ## Configuration
 
