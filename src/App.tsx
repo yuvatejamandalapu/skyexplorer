@@ -131,8 +131,8 @@ const SEED_GALAXY_DATA = [
   { name: "Maffei 2", ra: 55.4583, dec: 59.6192, type: "Barred Spiral Galaxy" }
 ];
 
-import Presentation from './components/Presentation';
 import PrintableReport from './components/PrintableReport';
+import DatabaseView from './components/DatabaseView';
 
 // --- App Component ---
 export default function App() {
@@ -144,7 +144,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  const [showPresentation, setShowPresentation] = useState(false);
+  const [showDatabase, setShowDatabase] = useState(false);
+  const [recentQueries, setRecentQueries] = useState<any[]>([]);
   
   const handlePrint = () => {
     window.print();
@@ -163,9 +164,22 @@ export default function App() {
     const testConnection = async () => {
       console.log("[Action] Testing Supabase Connection");
       try {
-        const { error } = await supabase.from('queries').select('id').limit(1);
-        if (error) throw error;
-        console.log("[Success] Supabase Connection Verified");
+        const { data, error } = await supabase
+          .from('queries')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        
+        if (error) {
+          if (error.code === '42P01') {
+            setError("Database table 'queries' missing. Please run the SQL setup script in Supabase.");
+          } else {
+            throw error;
+          }
+        } else {
+          setRecentQueries(data || []);
+          console.log("[Success] Supabase Connection Verified");
+        }
       } catch (error: any) {
         console.error("[Error] Supabase Connection Failed:", error.message);
         setError("Cosmic connection failed. Please check your Supabase configuration.");
@@ -402,6 +416,14 @@ export default function App() {
       }
       
       console.log("[Success] Analysis Cached Successfully");
+      
+      // Refresh recent queries
+      const { data: latest } = await supabase
+        .from('queries')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      setRecentQueries(latest || []);
 
     } catch (err) {
       console.error("[Error] Processing failed", err);
@@ -500,11 +522,11 @@ export default function App() {
               <FileText className="w-4 h-4" />
             </button>
             <button 
-              onClick={() => setShowPresentation(true)}
+              onClick={() => setShowDatabase(true)}
               className="p-3 hover:bg-white/5 rounded-full transition-all text-orange-500 hover:text-white border border-transparent hover:border-white/10"
-              title="Presentation Mode"
+              title="Database Schema"
             >
-              <Layers className="w-4 h-4" />
+              <Database className="w-4 h-4" />
             </button>
             <button 
               onClick={handleExit}
@@ -567,6 +589,32 @@ export default function App() {
               >
                 {isSeeding ? "Populating Database..." : "Seed 50 Primary Galaxies"}
               </button>
+
+              {recentQueries.length > 0 && (
+                <div className="w-full pt-10 space-y-4">
+                  <div className="flex items-center gap-3 text-zinc-600">
+                    <div className="h-px flex-1 bg-white/5" />
+                    <h3 className="text-[8px] uppercase font-bold tracking-[0.3em]">Recent Discoveries</h3>
+                    <div className="h-px flex-1 bg-white/5" />
+                  </div>
+                  <div className="space-y-2">
+                    {recentQueries.map((q) => (
+                      <button
+                        key={q.id}
+                        onClick={() => handleObjectSelect(q.ra, q.dec, q.catalog_data)}
+                        className="w-full p-3 bg-white/[0.02] border border-white/5 rounded-xl text-left hover:bg-white/5 transition-all group"
+                      >
+                        <div className="flex justify-between items-center">
+                          <p className="text-[10px] font-medium text-zinc-400 group-hover:text-white transition-colors">
+                            {q.catalog_data.name || `${q.ra.toFixed(2)}, ${q.dec.toFixed(2)}`}
+                          </p>
+                          <ChevronRight className="w-3 h-3 text-zinc-600 group-hover:text-orange-500 transition-all" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -710,8 +758,8 @@ export default function App() {
         </div>
       </main>
 
-      {showPresentation && (
-        <Presentation onClose={() => setShowPresentation(false)} />
+      {showDatabase && (
+        <DatabaseView onClose={() => setShowDatabase(false)} />
       )}
 
       <PrintableReport />

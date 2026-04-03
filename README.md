@@ -9,7 +9,6 @@ SkyExplorer AI is an interactive astronomical exploration tool that allows users
 - **Relational Database (Supabase/PostgreSQL)**:
     - **Structured Caching**: AI-generated summaries and user queries are stored in a PostgreSQL database with JSONB support.
     - **Data Integrity**: Leverages SQL constraints and ACID compliance for reliable astronomical data management.
-- **Presentation Mode**: Built-in interactive presentation for DBMS project reviews, explaining the PostgreSQL architecture and methodology.
 - **Coordinate Navigation**: Jump to any specific Right Ascension (RA) and Declination (Dec) with precision.
 - **Seed Database**: A curated collection of 50 primary galaxies to jumpstart your exploration.
 
@@ -29,7 +28,6 @@ SkyExplorer AI is an interactive astronomical exploration tool that allows users
 2. **Explore**: Click anywhere on the sky plate to select an object.
 3. **Search**: Enter RA/Dec coordinates in the sidebar to jump to a specific location.
 4. **Learn**: Read the AI-generated summaries for deep insights into celestial bodies.
-5. **Present**: Click the "Presentation Mode" icon in the sidebar to view the project report.
 
 ## Configuration
 
