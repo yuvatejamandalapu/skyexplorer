@@ -9,14 +9,14 @@ export default function PrintableReport() {
         <h2 className="text-xl font-semibold mb-2">School of Computer Science and Engineering</h2>
         <h3 className="text-lg mb-4">BCSE302L – Database Systems</h3>
         <div className="bg-black text-white inline-block px-4 py-1 font-bold uppercase tracking-widest text-sm">
-          Digital Assignment II: Project Report
+          Project Report: Database Systems
         </div>
       </div>
 
       {/* Project Title */}
       <div className="mb-12">
         <h4 className="text-sm font-mono uppercase tracking-widest opacity-60 mb-2">Project Title</h4>
-        <h2 className="text-4xl font-bold italic tracking-tight">SkyExplorer AI: Hybrid Database Astronomy</h2>
+        <h2 className="text-4xl font-bold italic tracking-tight">SkyExplorer AI: Relational Database Astronomy</h2>
       </div>
 
       {/* Sections */}
@@ -37,7 +37,7 @@ export default function PrintableReport() {
             <strong>Aladin Lite API:</strong> A widely used tool for visualizing astronomical images in a web browser, developed by the Centre de Données astronomiques de Strasbourg (CDS).
           </p>
           <p>
-            <strong>NoSQL vs SQL in Science:</strong> Research indicates that document-oriented databases (NoSQL) are superior for scientific metadata due to flexible schemas, while relational databases (SQL) are essential for maintaining data integrity and complex analytical joins.
+            <strong>Relational Databases in Science:</strong> Research indicates that relational databases (SQL) are essential for maintaining data integrity and complex analytical joins in large-scale scientific datasets.
           </p>
         </section>
 
@@ -45,27 +45,27 @@ export default function PrintableReport() {
           <h3 className="text-lg font-bold uppercase border-b border-black mb-4">3. Methodology & Database Design</h3>
           <div className="space-y-6">
             <div>
-              <h4 className="font-bold mb-2">3.1 Hybrid Database Architecture</h4>
+              <h4 className="font-bold mb-2">3.1 Relational Database Architecture</h4>
               <p>
-                The system implements a dual-database strategy. <strong>Firebase Firestore (NoSQL)</strong> is used for real-time synchronization and high-speed caching of AI-generated summaries. A <strong>Relational SQL Schema</strong> is used for the master catalog to ensure ACID compliance and support complex research queries.
+                The system implements a robust relational strategy using <strong>Supabase (PostgreSQL)</strong>. This ensures ACID compliance and provides high-performance JSONB storage for complex astronomical metadata and AI-generated summaries.
               </p>
             </div>
             
             <div>
-              <h4 className="font-bold mb-2">3.2 NoSQL Schema (Firestore)</h4>
+              <h4 className="font-bold mb-2">3.2 SQL Schema (PostgreSQL)</h4>
               <p className="font-mono text-sm bg-gray-100 p-4 rounded">
-                Collection: queries<br/>
-                Fields: ra (Number), dec (Number), catalog_data (Map), ai_summary (String), queried_at (Timestamp)
+                Table: queries<br/>
+                Fields: id (UUID), query_id (Text), ra (Float8), dec (Float8), catalog_data (JSONB), ai_summary (Text), created_at (Timestamp)
               </p>
             </div>
 
             <div>
-              <h4 className="font-bold mb-2">3.3 SQL Relational Schema</h4>
-              <p className="mb-2">The relational implementation consists of normalized tables:</p>
+              <h4 className="font-bold mb-2">3.3 Data Integrity & Security</h4>
+              <p className="mb-2">The implementation leverages PostgreSQL's advanced features:</p>
               <ul className="list-disc ml-6 space-y-1">
-                <li><strong>CelestialObjects:</strong> object_id (PK), name, ra, dec, type_id (FK)</li>
-                <li><strong>ObjectTypes:</strong> type_id (PK), type_name</li>
-                <li><strong>ResearchLogs:</strong> log_id (PK), object_id (FK), summary, created_at</li>
+                <li><strong>JSONB Indexing:</strong> Optimized retrieval of semi-structured catalog data.</li>
+                <li><strong>Row Level Security (RLS):</strong> Granular access control for database operations.</li>
+                <li><strong>ACID Compliance:</strong> Guarantees reliable transaction processing for scientific records.</li>
               </ul>
             </div>
           </div>
@@ -74,7 +74,7 @@ export default function PrintableReport() {
         <section>
           <h3 className="text-lg font-bold uppercase border-b border-black mb-4">4. Implementation & Results</h3>
           <p className="mb-4">
-            <strong>Intelligent Caching:</strong> The system reduces API latency by 85% through Firestore caching. When a celestial object is queried, the system first checks the NoSQL cache before invoking the Gemini AI engine.
+            <strong>Intelligent Caching:</strong> The system reduces AI API costs and latency by implementing a persistent SQL cache. When a celestial object is queried, the system first checks the PostgreSQL database for existing records before invoking the Gemini AI engine.
           </p>
           <p>
             <strong>Social Impact:</strong> The platform democratizes access to astronomical data, allowing students to explore the universe without needing deep expertise in coordinate systems or raw data parsing.
@@ -84,7 +84,7 @@ export default function PrintableReport() {
         <section>
           <h3 className="text-lg font-bold uppercase border-b border-black mb-4">5. Conclusion</h3>
           <p>
-            SkyExplorer AI successfully demonstrates how modern Database Systems can be combined with Generative AI to solve educational challenges. By moving away from static data tables to a dynamic, cached, and interpreted hybrid database, the project makes the field of astronomy more accessible and innovative.
+            SkyExplorer AI successfully demonstrates how modern Relational Database Systems can be combined with Generative AI to solve educational challenges. By leveraging PostgreSQL's powerful indexing and relational integrity, the project makes the field of astronomy more accessible and innovative.
           </p>
         </section>
       </div>
@@ -92,7 +92,7 @@ export default function PrintableReport() {
       {/* Footer */}
       <div className="mt-20 pt-8 border-t border-black text-sm flex justify-between">
         <p>© 2026 SkyExplorer AI Project</p>
-        <p>BCSE302L Digital Assignment II</p>
+        <p>BCSE302L Database Systems</p>
       </div>
     </div>
   );

@@ -34,6 +34,6 @@ SkyExplorer AI is an interactive astronomical exploration tool that allows users
 The application requires the following environment variables:
 
 - `GEMINI_API_KEY`: Your Google Gemini API key.
+- `VITE_SUPABASE_URL`: Your Supabase project URL.
+- `VITE_SUPABASE_ANON_KEY`: Your Supabase public anon key.
 - `APP_URL`: The hosted URL of the application.
-
-Firebase configuration is managed via `firebase-applet-config.json`.

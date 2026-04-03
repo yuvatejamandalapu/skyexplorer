@@ -141,10 +141,16 @@ CREATE POLICY "Public Read/Write" ON queries FOR ALL USING (true);`;
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-white/5 bg-black/20 text-center">
+        <div className="p-6 border-t border-white/5 bg-black/20 flex items-center justify-between">
           <p className="text-[9px] font-mono uppercase tracking-[0.3em] text-zinc-600">
             PostgreSQL // Supabase Cloud Instance
           </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 rounded-xl text-[9px] uppercase tracking-widest text-orange-500 transition-all font-bold"
+          >
+            Refresh & Test Connection
+          </button>
         </div>
       </motion.div>
     </div>

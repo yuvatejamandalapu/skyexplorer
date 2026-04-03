@@ -13,7 +13,8 @@ import {
   LogOut,
   FileText,
   Layers,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
@@ -147,7 +148,6 @@ export default function App() {
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [showDatabase, setShowDatabase] = useState(false);
   const [recentQueries, setRecentQueries] = useState<any[]>([]);
-  const [dbStatus, setDbStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected');
   
   const handlePrint = () => {
     window.print();
@@ -163,8 +163,7 @@ export default function App() {
   // Initialize Application
   useEffect(() => {
     console.log("[Action] Initializing Application");
-    const testConnection = async () => {
-      console.log("[Action] Testing Supabase Connection");
+    const fetchRecentQueries = async () => {
       try {
         const { data, error } = await supabase
           .from('queries')
@@ -172,31 +171,14 @@ export default function App() {
           .order('created_at', { ascending: false })
           .limit(5);
         
-        if (error) {
-          if (error.code === '42P01') {
-            setDbStatus('error');
-            setError("Database table 'queries' missing. Please run the SQL setup script in Supabase.");
-          } else {
-            setDbStatus('error');
-            setError(`Supabase Error: ${error.message} (Code: ${error.code})`);
-            throw error;
-          }
-        } else {
-          setDbStatus('connected');
+        if (!error) {
           setRecentQueries(data || []);
-          console.log("[Success] Supabase Connection Verified");
         }
-      } catch (error: any) {
-        setDbStatus('error');
-        console.error("[Error] Supabase Connection Failed:", error.message);
-        if (error.message.includes('configuration missing')) {
-          setError("Supabase configuration missing. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment variables in the Settings menu.");
-        } else {
-          setError("Cosmic connection failed. Please check your Supabase configuration.");
-        }
+      } catch (error) {
+        console.warn("[Warning] Initial database fetch failed, proceeding in offline mode.");
       }
     };
-    testConnection();
+    fetchRecentQueries();
     setLoading(false);
   }, []);
 
@@ -238,42 +220,6 @@ export default function App() {
   const handleEnter = () => {
     console.log("[Action] User Entered the Cosmos");
     setIsEntered(true);
-  };
-
-  const retryConnection = async () => {
-    console.log("[Action] Retrying Supabase Connection");
-    setDbStatus('disconnected');
-    setError(null);
-    try {
-      const { data, error } = await supabase
-        .from('queries')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-      
-      if (error) {
-        if (error.code === '42P01') {
-          setDbStatus('error');
-          setError("Database table 'queries' missing. Please run the SQL setup script in Supabase.");
-        } else {
-          setDbStatus('error');
-          setError(`Supabase Error: ${error.message} (Code: ${error.code})`);
-          throw error;
-        }
-      } else {
-        setDbStatus('connected');
-        setRecentQueries(data || []);
-        console.log("[Success] Supabase Connection Verified");
-      }
-    } catch (error: any) {
-      setDbStatus('error');
-      console.error("[Error] Supabase Connection Failed:", error.message);
-      if (error.message.includes('configuration missing')) {
-        setError("Supabase configuration missing. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment variables in the Settings menu.");
-      } else {
-        setError(`Cosmic connection failed: ${error.message}`);
-      }
-    }
   };
 
   const handleExit = () => {
@@ -621,43 +567,25 @@ export default function App() {
               />
             </div>
           </div>
-          <button 
-            onClick={handleSearch}
-            className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest"
-          >
-            <Search className="w-3.5 h-3.5 text-orange-500" />
-            Initiate Coordinate Jump
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleSearch}
+              className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest"
+            >
+              <Search className="w-3.5 h-3.5 text-orange-500" />
+              Initiate Jump
+            </button>
+            <button 
+              onClick={() => { setSearchRa(""); setSearchDec(""); }}
+              className="px-4 bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-500 hover:text-white rounded-xl transition-all"
+              title="Clear Coordinates"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
-          {dbStatus === 'error' && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl space-y-3">
-              <div className="flex items-center gap-2 text-red-400">
-                <Database className="w-3 h-3" />
-                <span className="text-[9px] font-bold uppercase tracking-widest">Database Error</span>
-              </div>
-              <p className="text-[10px] text-zinc-400 leading-relaxed">
-                {error || "Could not connect to Supabase. Please check your configuration."}
-              </p>
-              <div className="flex gap-4">
-                <button 
-                  onClick={() => setShowDatabase(true)}
-                  className="text-[9px] text-orange-500 hover:text-orange-400 font-bold uppercase tracking-widest"
-                >
-                  View SQL Setup Script
-                </button>
-                <button 
-                  onClick={retryConnection}
-                  className="text-[9px] text-zinc-400 hover:text-white font-bold uppercase tracking-widest flex items-center gap-1"
-                >
-                  <RefreshCw className="w-2 h-2" />
-                  Retry Connection
-                </button>
-              </div>
-            </div>
-          )}
-
           {!selectedObject && !isAnalyzing && (
             <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-30">
               <div className="w-20 h-20 rounded-full border border-dashed border-zinc-700 flex items-center justify-center">
@@ -667,40 +595,6 @@ export default function App() {
                 <p className="text-sm font-medium tracking-wide">Awaiting Selection</p>
                 <p className="text-[11px] text-zinc-500 max-w-[200px] leading-relaxed">Interact with the sky plate or use coordinates to begin deep analysis.</p>
               </div>
-              
-              <button 
-                onClick={seedDatabase}
-                disabled={isSeeding}
-                className="px-6 py-3 border border-white/10 rounded-full text-[9px] uppercase tracking-[0.2em] hover:bg-white/5 transition-all disabled:opacity-50"
-              >
-                {isSeeding ? "Populating Database..." : "Seed 50 Primary Galaxies"}
-              </button>
-
-              {recentQueries.length > 0 && (
-                <div className="w-full pt-10 space-y-4">
-                  <div className="flex items-center gap-3 text-zinc-600">
-                    <div className="h-px flex-1 bg-white/5" />
-                    <h3 className="text-[8px] uppercase font-bold tracking-[0.3em]">Recent Discoveries</h3>
-                    <div className="h-px flex-1 bg-white/5" />
-                  </div>
-                  <div className="space-y-2">
-                    {recentQueries.map((q) => (
-                      <button
-                        key={q.id}
-                        onClick={() => handleObjectSelect(q.ra, q.dec, q.catalog_data)}
-                        className="w-full p-3 bg-white/[0.02] border border-white/5 rounded-xl text-left hover:bg-white/5 transition-all group"
-                      >
-                        <div className="flex justify-between items-center">
-                          <p className="text-[10px] font-medium text-zinc-400 group-hover:text-white transition-colors">
-                            {q.catalog_data.name || `${q.ra.toFixed(2)}, ${q.dec.toFixed(2)}`}
-                          </p>
-                          <ChevronRight className="w-3 h-3 text-zinc-600 group-hover:text-orange-500 transition-all" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -788,6 +682,49 @@ export default function App() {
             )}
           </AnimatePresence>
 
+          {recentQueries.length > 0 && (
+            <div className="w-full pt-10 space-y-4">
+              <div className="flex items-center gap-3 text-zinc-600">
+                <div className="h-px flex-1 bg-white/5" />
+                <h3 className="text-[8px] uppercase font-bold tracking-[0.3em]">Recent Discoveries</h3>
+                <div className="h-px flex-1 bg-white/5" />
+              </div>
+              <div className="space-y-2">
+                {recentQueries.map((q) => (
+                  <button
+                    key={q.id}
+                    onClick={() => handleObjectSelect(q.ra, q.dec, q.catalog_data)}
+                    className="w-full p-3 bg-white/[0.02] border border-white/5 rounded-xl text-left hover:bg-white/5 transition-all group"
+                  >
+                    <div className="flex justify-between items-center">
+                      <p className="text-[10px] font-medium text-zinc-400 group-hover:text-white transition-colors">
+                        {q.catalog_data.name || `${q.ra.toFixed(2)}, ${q.dec.toFixed(2)}`}
+                      </p>
+                      <ChevronRight className="w-3 h-3 text-zinc-600 group-hover:text-orange-500 transition-all" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tools Section */}
+          <div className="w-full pt-10 space-y-4">
+            <div className="flex items-center gap-3 text-zinc-600">
+              <div className="h-px flex-1 bg-white/5" />
+              <h3 className="text-[8px] uppercase font-bold tracking-[0.3em]">System Tools</h3>
+              <div className="h-px flex-1 bg-white/5" />
+            </div>
+            <button 
+              onClick={seedDatabase}
+              disabled={isSeeding}
+              className="w-full py-3 bg-white/[0.02] border border-white/5 rounded-xl text-[9px] uppercase tracking-[0.2em] text-zinc-500 hover:text-white hover:bg-white/5 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isSeeding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Database className="w-3 h-3" />}
+              {isSeeding ? "Seeding..." : "Seed Primary Catalog"}
+            </button>
+          </div>
+
           {error && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
@@ -839,12 +776,9 @@ export default function App() {
             Interactive Sky Plate // Strasbourg Observatory
           </div>
           <div className="flex gap-4 pointer-events-auto">
-             <div className={cn(
-               "w-2 h-2 rounded-full animate-pulse",
-               dbStatus === 'connected' ? "bg-green-500" : dbStatus === 'error' ? "bg-red-500" : "bg-orange-500"
-             )} />
+             <div className="w-2 h-2 rounded-full animate-pulse bg-green-500" />
              <span className="text-[8px] font-mono uppercase tracking-widest text-zinc-600">
-               DB: {dbStatus}
+               System Active
              </span>
           </div>
         </div>
