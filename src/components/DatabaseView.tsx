@@ -60,6 +60,7 @@ CREATE POLICY "Public Read/Write" ON queries FOR ALL USING (true);`;
                 <li>Go to <span className="text-zinc-300">Secrets</span> or <span className="text-zinc-300">Environment Variables</span>.</li>
                 <li>Add <span className="text-orange-500 font-mono">VITE_SUPABASE_URL</span> with your project URL.</li>
                 <li>Add <span className="text-orange-500 font-mono">VITE_SUPABASE_ANON_KEY</span> with your public anon key.</li>
+                <li>Add <span className="text-orange-500 font-mono">VITE_GEMINI_API_KEY</span> with your Gemini API key.</li>
               </ol>
             </div>
           </section>

@@ -322,9 +322,9 @@ export default function App() {
       }
       setNotification({ message: "Database seeding process complete!", type: 'success' });
       setTimeout(() => setNotification(null), 5000);
-    } catch (err) {
+    } catch (err: any) {
       console.error("[Error] Seeding failed", err);
-      setError("Failed to seed database. Please check your Gemini API key.");
+      setError(err.message || "Failed to seed database. Please check your Gemini API key.");
     } finally {
       setIsSeeding(false);
     }
@@ -438,9 +438,9 @@ export default function App() {
         console.warn("[Warning] Caching failed");
       }
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("[Error] Processing failed", err);
-      setError("Something went wrong while analyzing the cosmos.");
+      setError(err.message || "Something went wrong while analyzing the cosmos.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -737,8 +737,14 @@ export default function App() {
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="p-5 bg-red-500/5 border border-red-500/10 rounded-2xl text-red-400 text-[10px] uppercase tracking-widest text-center"
+              className="p-5 bg-red-500/5 border border-red-500/10 rounded-2xl text-red-400 text-[10px] uppercase tracking-widest text-center relative group/error"
             >
+              <button 
+                onClick={() => setError(null)}
+                className="absolute top-2 right-2 p-1 hover:bg-white/5 rounded-full opacity-0 group-hover/error:opacity-100 transition-opacity"
+              >
+                <X className="w-3 h-3 text-zinc-500" />
+              </button>
               {error}
             </motion.div>
           )}
