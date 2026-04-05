@@ -254,7 +254,10 @@ export default function App() {
       }
       const ai = new GoogleGenAI({ apiKey });
       
-      for (const galaxy of SEED_GALAXY_DATA) {
+      // Limit seeding to first 5 objects as requested
+      const seedSubset = SEED_GALAXY_DATA.slice(0, 5);
+      
+      for (const galaxy of seedSubset) {
         const queryId = getCoordinateHash(galaxy.ra, galaxy.dec);
         console.log("[Action] Seeding Object:", galaxy.name, "ID:", queryId);
         
@@ -290,13 +293,13 @@ export default function App() {
           Provide a concise, fascinating summary. Use LaTeX for any mathematical notations (e.g., $z = 0.05$). Use markdown.`;
 
         console.log("[Action] Requesting AI Summary from Gemini for Seed Object");
-        const result = await ai.models.generateContent({
-          model: GEMINI_MODEL,
-          contents: prompt,
-        });
-
-        console.log("[Action] Caching Seed Analysis to Supabase");
         try {
+          const result = await ai.models.generateContent({
+            model: GEMINI_MODEL,
+            contents: prompt,
+          });
+
+          console.log("[Action] Caching Seed Analysis to Supabase");
           const { error: insertError } = await supabase
             .from('queries')
             .insert({
@@ -310,14 +313,19 @@ export default function App() {
           if (insertError) {
             console.warn("[Warning] Caching failed during seeding:", insertError.message);
           }
-        } catch (cacheWriteErr) {
-          console.warn("[Warning] Caching failed during seeding");
+          
+          console.log("[Success] Seed Analysis Processed");
+        } catch (aiErr: any) {
+          if (aiErr.message?.includes('429') || aiErr.status === 'RESOURCE_EXHAUSTED') {
+            console.error("[Error] Rate limit reached during seeding");
+            setError("AI Rate limit reached. Seeding stopped early, but existing data is saved.");
+            break; // Stop the loop
+          }
+          throw aiErr;
         }
-        
-        console.log("[Success] Seed Analysis Processed");
 
-        // Small delay to avoid rate limits
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Set delay to 1.5s as requested
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
       setNotification({ message: "Database seeding process complete!", type: 'success' });
       setTimeout(() => setNotification(null), 5000);

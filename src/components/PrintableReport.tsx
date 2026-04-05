@@ -74,7 +74,7 @@ export default function PrintableReport() {
         <section>
           <h3 className="text-lg font-bold uppercase border-b border-black mb-4">4. Implementation & Results</h3>
           <p className="mb-4">
-            <strong>Intelligent Caching:</strong> The system reduces AI API costs and latency by implementing a persistent SQL cache. When a celestial object is queried, the system first checks the PostgreSQL database for existing records before invoking the Gemini AI engine.
+            <strong>Intelligent Caching:</strong> The system reduces AI API costs and latency by implementing a persistent SQL cache. When a celestial object is queried, the system first checks the PostgreSQL database for existing records before invoking the xAI (Grok) engine.
           </p>
           <p>
             <strong>Social Impact:</strong> The platform democratizes access to astronomical data, allowing students to explore the universe without needing deep expertise in coordinate systems or raw data parsing.

@@ -28,4 +28,12 @@ SkyExplorer AI is an interactive astronomical exploration tool that allows users
 2. **Explore**: Click anywhere on the sky plate to select an object.
 3. **Search**: Enter RA/Dec coordinates in the sidebar to jump to a specific location.
 4. **Learn**: Read the AI-generated summaries for deep insights into celestial bodies.
- 
+
+## Configuration
+
+The application requires the following environment variables:
+
+- `VITE_GEMINI_API_KEY`: Your Google Gemini API key.
+- `VITE_SUPABASE_URL`: Your Supabase project URL.
+- `VITE_SUPABASE_ANON_KEY`: Your Supabase public anon key.
+- `APP_URL`: The hosted URL of the application.
